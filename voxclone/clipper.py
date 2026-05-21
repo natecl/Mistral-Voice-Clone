@@ -27,7 +27,7 @@ def parse_timestamp(value: str) -> float:
     return seconds
 
 
-def extract_clip(src, start, end, out_path):
+def extract_clip(src: Path | str, start: str, end: str, out_path: Path | str) -> Path:
     """Trim src to [start, end], convert to mono 24 kHz WAV, loudness-normalize.
 
     Returns the output Path. Warns (does not fail) when the clip length falls

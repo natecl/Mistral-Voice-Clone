@@ -45,3 +45,24 @@ def test_download_audio_raises_when_file_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(downloader.yt_dlp, "YoutubeDL", FakeYDL)
     with pytest.raises(RuntimeError, match="did not produce"):
         downloader.download_audio("https://youtu.be/x", tmp_path)
+
+
+def test_download_audio_raises_on_ydl_exception(tmp_path, monkeypatch):
+    from yt_dlp.utils import DownloadError
+
+    class FakeYDL:
+        def __init__(self, opts):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def extract_info(self, url, download):
+            raise DownloadError("network error")
+
+    monkeypatch.setattr(downloader.yt_dlp, "YoutubeDL", FakeYDL)
+    with pytest.raises(RuntimeError, match="network error"):
+        downloader.download_audio("https://youtu.be/x", tmp_path)

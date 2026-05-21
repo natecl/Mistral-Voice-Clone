@@ -74,3 +74,8 @@ def test_extract_clip_rejects_non_positive_duration(sine_audio, tmp_path):
 def test_extract_clip_warns_when_too_short(sine_audio, tmp_path, capsys):
     clipper.extract_clip(sine_audio, "0:00", "0:01", tmp_path / "short.wav")
     assert "best with" in capsys.readouterr().out
+
+
+def test_extract_clip_warns_when_too_long(sine_audio, tmp_path, capsys):
+    clipper.extract_clip(sine_audio, "0:00", "0:18", tmp_path / "long.wav")
+    assert "best with" in capsys.readouterr().out
