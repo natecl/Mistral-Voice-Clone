@@ -140,3 +140,13 @@ def test_speak_command_requires_text(tmp_path, monkeypatch, capsys):
     rc = cli.main(["speak", "--voice", "bob"])
     assert rc == 1
     assert "text" in capsys.readouterr().err.lower()
+
+
+def test_speak_command_reports_missing_text_file(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    registry.save_voice("bob", "voice-123")
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+    rc = cli.main(["speak", "--voice", "bob", "--text-file", "nope.txt",
+                   "--out", "out.mp3"])
+    assert rc == 1
+    assert "Error:" in capsys.readouterr().err

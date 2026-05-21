@@ -140,9 +140,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (config.ConfigError, deps.MissingDependencyError,
-            RuntimeError, ValueError) as exc:
+            RuntimeError, ValueError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
+    except (EOFError, KeyboardInterrupt):
+        print("Aborted.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":
