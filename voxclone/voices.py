@@ -3,9 +3,15 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mistralai.client import Mistral
 
 
-def create_voice(client, name: str, clip_path, languages: list[str]) -> str:
+def create_voice(
+    client: Mistral, name: str, clip_path: Path | str, languages: list[str]
+) -> str:
     """Create a saved Voxtral voice from a reference clip; return the voice id.
 
     `client` is an authenticated mistralai.Mistral instance. `clip_path` points

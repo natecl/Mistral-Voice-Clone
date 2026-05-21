@@ -88,4 +88,4 @@ def test_clone_command_aborts_without_consent(tmp_path, monkeypatch, capsys):
     rc = cli.main(["clone", "https://youtu.be/x",
                    "--start", "0:01", "--end", "0:08", "--name", "bob"])
     assert rc == 1
-    assert "Aborted" in capsys.readouterr().out
+    assert "Aborted" in capsys.readouterr().err

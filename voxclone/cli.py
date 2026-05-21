@@ -40,7 +40,8 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
 
 
 def _confirm_consent(args: argparse.Namespace) -> bool:
-    """Confirm the user has the right to clone this voice."""
+    """Return True if consent is confirmed via --i-have-consent or an
+    interactive [y/N] prompt; False if the prompt is declined."""
     if args.i_have_consent:
         return True
     print(
@@ -53,9 +54,10 @@ def _confirm_consent(args: argparse.Namespace) -> bool:
 
 def _cmd_clone(args: argparse.Namespace) -> int:
     if not _confirm_consent(args):
-        print("Aborted: consent not confirmed.")
+        print("Aborted: consent not confirmed.", file=sys.stderr)
         return 1
     client = config.get_client()
+    # `tmp` keeps the reference clip alive while voices.create_voice reads it.
     with tempfile.TemporaryDirectory() as tmp:
         clip = Path(tmp) / "reference.wav"
         _prepare_reference(args.url, args.start, args.end, clip)
