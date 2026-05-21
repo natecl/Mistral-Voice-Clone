@@ -35,6 +35,10 @@ voxclone clone "<youtube-url>" --start 0:30 --end 0:40 \
     --name my-voice --i-have-consent
 ```
 
+Cloned voices are retained by Mistral for about 30 days by default. Add
+`--languages` (e.g. `--languages en fr`) to declare the voice's languages;
+it defaults to `en`.
+
 Generate speech with a saved voice:
 
 ```bash

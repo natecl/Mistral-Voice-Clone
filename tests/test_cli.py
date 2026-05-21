@@ -83,6 +83,7 @@ def test_clone_command_creates_and_saves_voice(tmp_path, monkeypatch, capsys):
 
 def test_clone_command_aborts_without_consent(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.deps, "check_dependencies", lambda: None)
     monkeypatch.setattr("builtins.input", lambda *a, **k: "n")
 
     rc = cli.main(["clone", "https://youtu.be/x",
@@ -150,3 +151,28 @@ def test_speak_command_reports_missing_text_file(tmp_path, monkeypatch, capsys):
                    "--out", "out.mp3"])
     assert rc == 1
     assert "Error:" in capsys.readouterr().err
+
+
+def test_speak_command_reports_api_error(tmp_path, monkeypatch, capsys):
+    from mistralai.client.errors import MistralError
+
+    class _FakeApiError(MistralError):
+        """A MistralError subclass that avoids the SDK's __init__ args."""
+
+        def __init__(self, message):
+            self._message = message
+
+        def __str__(self):
+            return self._message
+
+    monkeypatch.chdir(tmp_path)
+    registry.save_voice("bob", "voice-123")
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+
+    def boom(*args, **kwargs):
+        raise _FakeApiError("api rejected the request")
+
+    monkeypatch.setattr(cli.synth, "synthesize", boom)
+    rc = cli.main(["speak", "--voice", "bob", "--text", "hi", "--out", "o.mp3"])
+    assert rc == 1
+    assert "api rejected the request" in capsys.readouterr().err

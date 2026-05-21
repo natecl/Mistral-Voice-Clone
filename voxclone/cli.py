@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 from . import clipper, config, deps, downloader, registry, synth, voices
+from mistralai.client.errors import MistralError, NoResponseError
 
 
 def _cmd_voices(args: argparse.Namespace) -> int:
@@ -21,8 +22,10 @@ def _cmd_voices(args: argparse.Namespace) -> int:
 
 
 def _prepare_reference(url: str, start: str, end: str, out_path: Path) -> Path:
-    """Download `url`, extract [start, end] into a clean reference clip."""
-    deps.check_dependencies()
+    """Download `url`, extract [start, end] into a clean reference clip.
+
+    Callers are responsible for running deps.check_dependencies() first.
+    """
     out_path = Path(out_path)
     with tempfile.TemporaryDirectory() as tmp:
         print(f"Downloading audio from {url} ...")
@@ -33,6 +36,7 @@ def _prepare_reference(url: str, start: str, end: str, out_path: Path) -> Path:
 
 
 def _cmd_prepare(args: argparse.Namespace) -> int:
+    deps.check_dependencies()
     out = Path(args.out)
     _prepare_reference(args.url, args.start, args.end, out)
     print(f"Reference clip saved to {out}")
@@ -53,6 +57,7 @@ def _confirm_consent(args: argparse.Namespace) -> bool:
 
 
 def _cmd_clone(args: argparse.Namespace) -> int:
+    deps.check_dependencies()
     if not _confirm_consent(args):
         print("Aborted: consent not confirmed.", file=sys.stderr)
         return 1
@@ -65,6 +70,7 @@ def _cmd_clone(args: argparse.Namespace) -> int:
         voice_id = voices.create_voice(client, args.name, clip, args.languages)
     registry.save_voice(args.name, voice_id)
     print(f"Voice '{args.name}' created and saved: {voice_id}")
+    print("Note: Mistral retains cloned voices for ~30 days by default.")
     return 0
 
 
@@ -79,7 +85,8 @@ def _cmd_speak(args: argparse.Namespace) -> int:
     client = config.get_client()
     voice_id = registry.resolve_voice(args.voice)
     out = Path(args.out) if args.out else Path(f"speech.{args.format}")
-    print(f"Generating speech with voice '{args.voice}' ...")
+    print(f"Generating speech with voice '{args.voice}' "
+          f"({len(text)} characters) ...")
     synth.synthesize(client, voice_id, text, out, response_format=args.format)
     print(f"Wrote {out}")
     return 0
@@ -140,7 +147,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (config.ConfigError, deps.MissingDependencyError,
-            RuntimeError, ValueError, OSError) as exc:
+            RuntimeError, ValueError, OSError,
+            MistralError, NoResponseError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     except (EOFError, KeyboardInterrupt):
