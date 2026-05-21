@@ -6,7 +6,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import clipper, config, deps, downloader, registry
+from . import clipper, config, deps, downloader, registry, voices
 
 
 def _cmd_voices(args: argparse.Namespace) -> int:
@@ -39,6 +39,33 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _confirm_consent(args: argparse.Namespace) -> bool:
+    """Confirm the user has the right to clone this voice."""
+    if args.i_have_consent:
+        return True
+    print(
+        "Voice cloning requires the right to clone this voice — "
+        "your own voice, or the speaker's explicit consent."
+    )
+    answer = input("Do you have that right? [y/N] ").strip().lower()
+    return answer in ("y", "yes")
+
+
+def _cmd_clone(args: argparse.Namespace) -> int:
+    if not _confirm_consent(args):
+        print("Aborted: consent not confirmed.")
+        return 1
+    client = config.get_client()
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = Path(tmp) / "reference.wav"
+        _prepare_reference(args.url, args.start, args.end, clip)
+        print("Creating Voxtral voice ...")
+        voice_id = voices.create_voice(client, args.name, clip, args.languages)
+    registry.save_voice(args.name, voice_id)
+    print(f"Voice '{args.name}' created and saved: {voice_id}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="voxclone",
@@ -57,6 +84,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_prepare.add_argument("--end", required=True, help="Clip end (MM:SS)")
     p_prepare.add_argument("--out", required=True, help="Output WAV path")
     p_prepare.set_defaults(func=_cmd_prepare)
+
+    p_clone = sub.add_parser(
+        "clone", help="Clone a voice from a YouTube video"
+    )
+    p_clone.add_argument("url", help="YouTube video URL")
+    p_clone.add_argument("--start", required=True, help="Clip start (MM:SS)")
+    p_clone.add_argument("--end", required=True, help="Clip end (MM:SS)")
+    p_clone.add_argument("--name", required=True,
+                         help="Name to save the cloned voice under")
+    p_clone.add_argument("--languages", nargs="+", default=["en"],
+                         help="Language codes for the voice (default: en)")
+    p_clone.add_argument("--i-have-consent", action="store_true",
+                         help="Confirm you have the right to clone this voice")
+    p_clone.set_defaults(func=_cmd_clone)
 
     return parser
 

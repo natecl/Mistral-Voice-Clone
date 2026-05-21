@@ -50,3 +50,42 @@ def test_prepare_command_writes_reference_clip(tmp_path, monkeypatch, capsys):
     assert rc == 0
     assert Path("reference.wav").read_bytes() == b"RIFFclip"
     assert "reference.wav" in capsys.readouterr().out
+
+
+def test_clone_command_creates_and_saves_voice(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.deps, "check_dependencies", lambda: None)
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+
+    def fake_download(url, out_dir):
+        path = Path(out_dir) / "audio.wav"
+        path.write_bytes(b"RIFFaudio")
+        return path
+
+    def fake_extract(src, start, end, out):
+        Path(out).write_bytes(b"clip")
+        return Path(out)
+
+    monkeypatch.setattr(cli.downloader, "download_audio", fake_download)
+    monkeypatch.setattr(cli.clipper, "extract_clip", fake_extract)
+    monkeypatch.setattr(
+        cli.voices, "create_voice",
+        lambda client, name, clip, langs: "voice-123",
+    )
+
+    rc = cli.main(["clone", "https://youtu.be/x",
+                   "--start", "0:01", "--end", "0:08",
+                   "--name", "bob", "--i-have-consent"])
+    assert rc == 0
+    assert registry.resolve_voice("bob") == "voice-123"
+    assert "voice-123" in capsys.readouterr().out
+
+
+def test_clone_command_aborts_without_consent(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("builtins.input", lambda *a, **k: "n")
+
+    rc = cli.main(["clone", "https://youtu.be/x",
+                   "--start", "0:01", "--end", "0:08", "--name", "bob"])
+    assert rc == 1
+    assert "Aborted" in capsys.readouterr().out
