@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+# mistralai v2 is a namespace package; the client is exposed via this sub-package,
+# not via `from mistralai import Mistral` (which fails on v2.x).
 from mistralai.client import Mistral
 
 MODEL = "voxtral-mini-tts-2603"
@@ -22,7 +24,7 @@ class ConfigError(RuntimeError):
 def get_api_key() -> str:
     """Return the Mistral API key from the environment or a local .env file."""
     load_dotenv()
-    key = os.environ.get("MISTRAL_API_KEY")
+    key = os.environ.get("MISTRAL_API_KEY", "").strip()
     if not key:
         raise ConfigError(
             "MISTRAL_API_KEY is not set. "

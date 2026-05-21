@@ -12,7 +12,13 @@ def load_registry(path: Path = REGISTRY_PATH) -> dict[str, str]:
     path = Path(path)
     if not path.exists():
         return {}
-    return json.loads(path.read_text())
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Registry file is corrupt ({path}): {exc}. "
+            "Delete it or restore it manually."
+        ) from exc
 
 
 def _write(registry: dict[str, str], path: Path) -> None:

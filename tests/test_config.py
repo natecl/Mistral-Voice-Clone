@@ -22,3 +22,4 @@ def test_constants_have_expected_values():
     assert config.SAMPLE_RATE == 24000
     assert config.MIN_CLIP_SECONDS == 3.0
     assert config.MAX_CLIP_SECONDS == 10.0
+    assert config.CLIP_WARN_CEILING == 15.0
