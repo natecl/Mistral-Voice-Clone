@@ -60,6 +60,7 @@ def test_synthesize_gives_up_after_max_retries(tmp_path, monkeypatch):
     client = _fake_client({}, b"never", fail_times=99, status_code=503)
     out = tmp_path / "out.mp3"
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception) as exc_info:
         synth.synthesize(client, "v", "hi", out, max_retries=2)
+    assert exc_info.value.status_code == 503
     assert not out.exists()

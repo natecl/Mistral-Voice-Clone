@@ -70,7 +70,7 @@ def _cmd_clone(args: argparse.Namespace) -> int:
 
 def _cmd_speak(args: argparse.Namespace) -> int:
     if args.text_file:
-        text = Path(args.text_file).read_text()
+        text = Path(args.text_file).read_text(encoding="utf-8")
     elif args.text:
         text = args.text
     else:

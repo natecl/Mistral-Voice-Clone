@@ -7,10 +7,11 @@ from pathlib import Path
 
 from .config import MODEL
 
+# 500 is included because the Mistral API surfaces some transient errors as 500.
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
-def synthesize(client, voice_id: str, text: str, out_path,
+def synthesize(client, voice_id: str, text: str, out_path: str | Path,
                response_format: str = "mp3", max_retries: int = 3) -> Path:
     """Generate speech in `voice_id` from `text`, writing audio to `out_path`.
 
