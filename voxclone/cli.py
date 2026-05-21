@@ -6,7 +6,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import clipper, config, deps, downloader, registry, voices
+from . import clipper, config, deps, downloader, registry, synth, voices
 
 
 def _cmd_voices(args: argparse.Namespace) -> int:
@@ -68,6 +68,23 @@ def _cmd_clone(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_speak(args: argparse.Namespace) -> int:
+    if args.text_file:
+        text = Path(args.text_file).read_text()
+    elif args.text:
+        text = args.text
+    else:
+        print("Error: provide --text or --text-file", file=sys.stderr)
+        return 1
+    client = config.get_client()
+    voice_id = registry.resolve_voice(args.voice)
+    out = Path(args.out) if args.out else Path(f"speech.{args.format}")
+    print(f"Generating speech with voice '{args.voice}' ...")
+    synth.synthesize(client, voice_id, text, out, response_format=args.format)
+    print(f"Wrote {out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="voxclone",
@@ -100,6 +117,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_clone.add_argument("--i-have-consent", action="store_true",
                          help="Confirm you have the right to clone this voice")
     p_clone.set_defaults(func=_cmd_clone)
+
+    p_speak = sub.add_parser(
+        "speak", help="Generate speech with a saved voice"
+    )
+    p_speak.add_argument("--voice", required=True,
+                         help="Saved voice name (or raw voice id)")
+    p_speak.add_argument("--text", help="Text to speak")
+    p_speak.add_argument("--text-file", help="Path to a file with text to speak")
+    p_speak.add_argument("--format", default="mp3",
+                         choices=["mp3", "wav", "pcm", "flac", "opus"],
+                         help="Output audio format (default: mp3)")
+    p_speak.add_argument("--out", help="Output path (default: speech.<format>)")
+    p_speak.set_defaults(func=_cmd_speak)
 
     return parser
 

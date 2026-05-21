@@ -89,3 +89,53 @@ def test_clone_command_aborts_without_consent(tmp_path, monkeypatch, capsys):
                    "--start", "0:01", "--end", "0:08", "--name", "bob"])
     assert rc == 1
     assert "Aborted" in capsys.readouterr().err
+
+
+def test_speak_command_writes_output_for_saved_voice(tmp_path, monkeypatch,
+                                                     capsys):
+    monkeypatch.chdir(tmp_path)
+    registry.save_voice("bob", "voice-123")
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+    capture = {}
+
+    def fake_synth(client, voice_id, text, out, response_format="mp3"):
+        capture.update(voice_id=voice_id, text=text, fmt=response_format)
+        Path(out).write_bytes(b"audio-bytes")
+        return Path(out)
+
+    monkeypatch.setattr(cli.synth, "synthesize", fake_synth)
+
+    rc = cli.main(["speak", "--voice", "bob", "--text", "Hello there",
+                   "--out", "result.mp3"])
+    assert rc == 0
+    assert capture["voice_id"] == "voice-123"  # name resolved to id
+    assert capture["text"] == "Hello there"
+    assert Path("result.mp3").read_bytes() == b"audio-bytes"
+
+
+def test_speak_command_reads_text_file(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    registry.save_voice("bob", "voice-123")
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+    (tmp_path / "script.txt").write_text("from a file")
+    capture = {}
+
+    def fake_synth(client, voice_id, text, out, response_format="mp3"):
+        capture["text"] = text
+        Path(out).write_bytes(b"x")
+        return Path(out)
+
+    monkeypatch.setattr(cli.synth, "synthesize", fake_synth)
+
+    rc = cli.main(["speak", "--voice", "bob", "--text-file", "script.txt",
+                   "--out", "out.mp3"])
+    assert rc == 0
+    assert capture["text"] == "from a file"
+
+
+def test_speak_command_requires_text(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    registry.save_voice("bob", "voice-123")
+    rc = cli.main(["speak", "--voice", "bob"])
+    assert rc == 1
+    assert "text" in capsys.readouterr().err.lower()
