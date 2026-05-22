@@ -79,3 +79,27 @@ def test_extract_clip_warns_when_too_short(sine_audio, tmp_path, capsys):
 def test_extract_clip_warns_when_too_long(sine_audio, tmp_path, capsys):
     clipper.extract_clip(sine_audio, "0:00", "0:18", tmp_path / "long.wav")
     assert "best with" in capsys.readouterr().out
+
+
+def test_probe_duration_returns_clip_length(sine_audio):
+    assert 19.5 < clipper.probe_duration(sine_audio) < 20.5  # ~20s tone
+
+
+def test_probe_duration_raises_for_missing_file(tmp_path):
+    with pytest.raises(RuntimeError):
+        clipper.probe_duration(tmp_path / "does-not-exist.wav")
+
+
+def test_warn_if_unusual_length_warns_when_too_short(capsys):
+    clipper.warn_if_unusual_length(1.0)
+    assert "best with" in capsys.readouterr().out
+
+
+def test_warn_if_unusual_length_warns_when_too_long(capsys):
+    clipper.warn_if_unusual_length(20.0)
+    assert "best with" in capsys.readouterr().out
+
+
+def test_warn_if_unusual_length_silent_when_in_range(capsys):
+    clipper.warn_if_unusual_length(7.0)
+    assert capsys.readouterr().out == ""
