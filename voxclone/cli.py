@@ -57,17 +57,40 @@ def _confirm_consent(args: argparse.Namespace) -> bool:
 
 
 def _cmd_clone(args: argparse.Namespace) -> int:
+    # Resolve and validate the input mode before any prompts or network calls.
+    if args.clip and (args.url or args.start or args.end):
+        print("Error: --clip cannot be combined with a URL or --start/--end.",
+              file=sys.stderr)
+        return 1
+    clip_path = None
+    if args.clip:
+        clip_path = Path(args.clip)
+        if not clip_path.is_file():
+            print(f"Error: clip not found: {clip_path}", file=sys.stderr)
+            return 1
+    elif not (args.url and args.start and args.end):
+        print("Error: provide --clip <path>, or a URL with --start and --end.",
+              file=sys.stderr)
+        return 1
+
     deps.check_dependencies()
     if not _confirm_consent(args):
         print("Aborted: consent not confirmed.", file=sys.stderr)
         return 1
     client = config.get_client()
-    # `tmp` keeps the reference clip alive while voices.create_voice reads it.
-    with tempfile.TemporaryDirectory() as tmp:
-        clip = Path(tmp) / "reference.wav"
-        _prepare_reference(args.url, args.start, args.end, clip)
+    if clip_path is not None:
+        clipper.warn_if_unusual_length(clipper.probe_duration(clip_path))
         print("Creating Voxtral voice ...")
-        voice_id = voices.create_voice(client, args.name, clip, args.languages)
+        voice_id = voices.create_voice(client, args.name, clip_path,
+                                       args.languages)
+    else:
+        # `tmp` keeps the reference clip alive while voices.create_voice reads it.
+        with tempfile.TemporaryDirectory() as tmp:
+            clip = Path(tmp) / "reference.wav"
+            _prepare_reference(args.url, args.start, args.end, clip)
+            print("Creating Voxtral voice ...")
+            voice_id = voices.create_voice(client, args.name, clip,
+                                           args.languages)
     registry.save_voice(args.name, voice_id)
     print(f"Voice '{args.name}' created and saved: {voice_id}")
     print("Note: Mistral retains cloned voices for ~30 days by default.")
@@ -112,11 +135,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_prepare.set_defaults(func=_cmd_prepare)
 
     p_clone = sub.add_parser(
-        "clone", help="Clone a voice from a YouTube video"
+        "clone", help="Clone a voice from a YouTube video or a local audio file"
     )
-    p_clone.add_argument("url", help="YouTube video URL")
-    p_clone.add_argument("--start", required=True, help="Clip start (MM:SS)")
-    p_clone.add_argument("--end", required=True, help="Clip end (MM:SS)")
+    p_clone.add_argument("url", nargs="?",
+                         help="YouTube video URL (omit when using --clip)")
+    p_clone.add_argument("--start", help="Clip start (MM:SS)")
+    p_clone.add_argument("--end", help="Clip end (MM:SS)")
+    p_clone.add_argument("--clip",
+                         help="Path to a local audio file to clone from, "
+                              "instead of a YouTube URL")
     p_clone.add_argument("--name", required=True,
                          help="Name to save the cloned voice under")
     p_clone.add_argument("--languages", nargs="+", default=["en"],

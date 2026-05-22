@@ -27,6 +27,37 @@ def parse_timestamp(value: str) -> float:
     return seconds
 
 
+def warn_if_unusual_length(duration: float) -> None:
+    """Print a warning (does not raise) when a reference clip's length falls
+    outside the range Voxtral works best with."""
+    if duration < MIN_CLIP_SECONDS or duration > CLIP_WARN_CEILING:
+        print(
+            f"Warning: reference clip is {duration:.1f}s. Voxtral works "
+            f"best with {MIN_CLIP_SECONDS:.0f}-{MAX_CLIP_SECONDS:.0f}s "
+            f"of clean speech."
+        )
+
+
+def probe_duration(src: Path | str) -> float:
+    """Return the duration of `src` in seconds, measured with ffprobe.
+
+    Raises RuntimeError if ffprobe cannot read the file or report a duration.
+    """
+    result = subprocess.run(
+        ["ffprobe", "-v", "error",
+         "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1",
+         str(src)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed to read {src}:\n{result.stderr}")
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        raise RuntimeError(f"ffprobe returned no duration for {src}") from None
+
+
 def extract_clip(src: Path | str, start: str, end: str, out_path: Path | str) -> Path:
     """Trim src to [start, end], convert to mono 24 kHz WAV, loudness-normalize.
 
@@ -40,12 +71,7 @@ def extract_clip(src: Path | str, start: str, end: str, out_path: Path | str) ->
         raise ValueError(
             f"end ({end}) must be after start ({start})"
         )
-    if duration < MIN_CLIP_SECONDS or duration > CLIP_WARN_CEILING:
-        print(
-            f"Warning: reference clip is {duration:.1f}s. Voxtral works "
-            f"best with {MIN_CLIP_SECONDS:.0f}-{MAX_CLIP_SECONDS:.0f}s "
-            f"of clean speech."
-        )
+    warn_if_unusual_length(duration)
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [

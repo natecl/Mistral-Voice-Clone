@@ -92,6 +92,81 @@ def test_clone_command_aborts_without_consent(tmp_path, monkeypatch, capsys):
     assert "Aborted" in capsys.readouterr().err
 
 
+def test_clone_command_clones_from_local_clip(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.deps, "check_dependencies", lambda: None)
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+    monkeypatch.setattr(cli.clipper, "probe_duration", lambda src: 7.0)
+    clip = tmp_path / "ref.wav"
+    clip.write_bytes(b"RIFFclip")
+    capture = {}
+
+    def fake_create(client, name, clip_path, langs):
+        capture["clip"] = Path(clip_path)
+        return "voice-local"
+
+    monkeypatch.setattr(cli.voices, "create_voice", fake_create)
+
+    rc = cli.main(["clone", "--clip", str(clip),
+                   "--name", "bob", "--i-have-consent"])
+    assert rc == 0
+    assert capture["clip"] == clip  # the local file is used directly
+    assert registry.resolve_voice("bob") == "voice-local"
+    assert "voice-local" in capsys.readouterr().out
+
+
+def test_clone_command_reports_missing_clip_file(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.deps, "check_dependencies", lambda: None)
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+
+    rc = cli.main(["clone", "--clip", "nope.wav",
+                   "--name", "bob", "--i-have-consent"])
+    assert rc == 1
+    assert "nope.wav" in capsys.readouterr().err
+
+
+def test_clone_command_rejects_clip_combined_with_url(tmp_path, monkeypatch,
+                                                      capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.deps, "check_dependencies", lambda: None)
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+    clip = tmp_path / "ref.wav"
+    clip.write_bytes(b"RIFFclip")
+
+    rc = cli.main(["clone", "https://youtu.be/x", "--clip", str(clip),
+                   "--name", "bob", "--i-have-consent"])
+    assert rc == 1
+    assert "Error:" in capsys.readouterr().err
+
+
+def test_clone_command_requires_an_input_mode(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.deps, "check_dependencies", lambda: None)
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+
+    rc = cli.main(["clone", "--name", "bob", "--i-have-consent"])
+    assert rc == 1
+    assert "Error:" in capsys.readouterr().err
+
+
+def test_clone_command_warns_on_short_local_clip(tmp_path, monkeypatch,
+                                                 capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.deps, "check_dependencies", lambda: None)
+    monkeypatch.setattr(cli.config, "get_client", lambda: object())
+    monkeypatch.setattr(cli.clipper, "probe_duration", lambda src: 1.0)
+    monkeypatch.setattr(cli.voices, "create_voice",
+                        lambda client, name, clip, langs: "voice-local")
+    clip = tmp_path / "ref.wav"
+    clip.write_bytes(b"RIFFclip")
+
+    rc = cli.main(["clone", "--clip", str(clip),
+                   "--name", "bob", "--i-have-consent"])
+    assert rc == 0
+    assert "best with" in capsys.readouterr().out
+
+
 def test_speak_command_writes_output_for_saved_voice(tmp_path, monkeypatch,
                                                      capsys):
     monkeypatch.chdir(tmp_path)
