@@ -6,7 +6,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import clipper, config, deps, downloader, registry, synth, voices
+from . import batch, clipper, config, deps, downloader, registry, synth, voices
 from mistralai.client.errors import MistralError, NoResponseError
 
 
@@ -97,6 +97,46 @@ def _cmd_clone(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_clone_batch(args: argparse.Namespace) -> int:
+    file_path = Path(args.file)
+    if not file_path.is_file():
+        print(f"Error: batch file not found: {file_path}", file=sys.stderr)
+        return 1
+
+    entries = batch.parse_batch_file(file_path)
+
+    existing = set(registry.load_registry()) & {e.name for e in entries}
+    if existing:
+        names = ", ".join(sorted(existing))
+        print(
+            f"Error: voice name(s) already in registry: {names}. "
+            f"Rename in the batch file or remove from .voxclone/voices.json.",
+            file=sys.stderr,
+        )
+        return 1
+
+    deps.check_dependencies()
+    if not _confirm_consent(args):
+        print("Aborted: consent not confirmed.", file=sys.stderr)
+        return 1
+    client = config.get_client()
+
+    total = len(entries)
+    for i, entry in enumerate(entries, start=1):
+        print(f"[{i}/{total}] cloning '{entry.name}' from {entry.url} ...")
+        with tempfile.TemporaryDirectory() as tmp:
+            clip = Path(tmp) / "reference.wav"
+            _prepare_reference(entry.url, entry.start, entry.end, clip)
+            print("Creating Voxtral voice ...")
+            voice_id = voices.create_voice(client, entry.name, clip,
+                                           args.languages)
+        registry.save_voice(entry.name, voice_id)
+        print(f"Voice '{entry.name}' created and saved: {voice_id}")
+    print(f"Done. Cloned {total} voice(s). "
+          f"Note: Mistral retains cloned voices for ~30 days by default.")
+    return 0
+
+
 def _cmd_speak(args: argparse.Namespace) -> int:
     if args.text_file:
         text = Path(args.text_file).read_text(encoding="utf-8")
@@ -151,6 +191,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_clone.add_argument("--i-have-consent", action="store_true",
                          help="Confirm you have the right to clone this voice")
     p_clone.set_defaults(func=_cmd_clone)
+
+    p_batch = sub.add_parser(
+        "clone-batch",
+        help="Clone multiple voices from a .env-style batch file",
+    )
+    p_batch.add_argument("file", help="Path to batch file (e.g. voices.env)")
+    p_batch.add_argument("--languages", nargs="+", default=["en"],
+                         help="Language codes applied to every voice "
+                              "(default: en). Pass AFTER the file argument "
+                              "to avoid argparse consuming the file as a "
+                              "language code: 'clone-batch voices.env "
+                              "--languages en fr'.")
+    p_batch.add_argument("--i-have-consent", action="store_true",
+                         help="Confirm you have the right to clone every "
+                              "voice in the batch file")
+    p_batch.set_defaults(func=_cmd_clone_batch)
 
     p_speak = sub.add_parser(
         "speak", help="Generate speech with a saved voice"
