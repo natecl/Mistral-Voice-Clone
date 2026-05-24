@@ -51,6 +51,52 @@ Both forms accept `--languages` (default `en`, e.g. `--languages en fr`).
 Cloned voices are retained by Mistral for ~30 days. The voice name is saved
 to a local registry (`.voxclone/voices.json`).
 
+### Clone multiple voices at once (batch)
+
+When the user asks to "run the batch", "clone the batch file", or otherwise
+clone several voices from a list, use `voxclone clone-batch <file>`.
+
+The batch file is `.env`-style — one block per voice, numbered:
+
+```
+# voices.env
+VOICE1_NAME=alice
+VOICE1_URL=https://youtu.be/abc
+VOICE1_START=0:30
+VOICE1_END=0:40
+
+VOICE2_NAME=bob
+VOICE2_URL=https://youtu.be/xyz
+VOICE2_START=1:00
+VOICE2_END=1:10
+```
+
+`example_voices.env` in the repo root is a starter template. The default
+filename to look for is `voices.env` (project root); if it is not there,
+ask the user where the batch file lives — do not guess.
+
+Run it with:
+
+```bash
+voxclone clone-batch voices.env --i-have-consent
+# or, if the console script isn't on PATH:
+python3 -m voxclone.cli clone-batch voices.env --i-have-consent
+```
+
+Behavior to be aware of when reporting to the user:
+
+- **Pre-flight collision check**: if any `VOICEn_NAME` already exists in the
+  local registry, the command aborts before any download or API call with
+  exit 1. Tell the user which names collided and ask whether to rename in
+  the batch file or remove them from `.voxclone/voices.json`.
+- **Abort on first failure**: a single failure (download error, 403 paid-plan
+  error, etc.) aborts the rest of the batch. Voices created before the
+  failure stay saved. Report which voices made it and which did not.
+- Confirm consent applies to **every** voice in the file before passing
+  `--i-have-consent`. Same rule as single-clone — if you aren't sure, ask.
+- `--languages` on `clone-batch` applies to every entry in the file
+  (default `en`).
+
 ### Generate speech with a cloned voice
 
 ```bash
